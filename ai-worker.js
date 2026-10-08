@@ -124,37 +124,54 @@ const PS=[
 function evaluate(b){
   let score=0;
   let bc=0,rc=0,bk=0,rk=0,bm=0,rm=0;
+  let bAdv=0,rAdv=0,bCenter=0,rCenter=0;
 
   for(let r=0;r<8;r++)for(let c=0;c<8;c++){
     const p=b[r][c];
     if(!p) continue;
     const co=C(p),sg=co==='b'?1:-1,isK=K(p);
+
     if(co==='b'){bc++;if(isK)bk++;else bm++}
     else{rc++;if(isK)rk++;else rm++}
 
-    let v=isK?185:100;
+    let v=isK?190:100;
     let pos=PS[r][c];
 
-    if(!isK){
-      const center=(3.5-Math.abs(3.5-c))*3+(3.5-Math.abs(3.5-r))*2;
-      pos+=center;
-      if((c===0||c===7)&&r>1&&r<6) pos-=8;
-      // Promotion proximity matters, but not enough to override tactics.
-      pos+=co==='r'?(7-r)*2:r*2;
+    if(isK){
+      const ctr=(3.5-Math.abs(3.5-c))+(3.5-Math.abs(3.5-r));
+      pos += ctr*7;
     }else{
-      pos+=18;
+      const advance=co==='r' ? 7-r : r;
+      const center=(3.5-Math.abs(3.5-c))*4;
+      pos += advance*3 + center;
+      if(co==='b') bAdv+=advance;
+      else rAdv+=advance;
+      if(c>=2&&c<=5){
+        if(co==='b') bCenter++;
+        else rCenter++;
+      }
+      if((c===0||c===7)&&r>1&&r<6) pos-=9;
     }
-    score+=sg*(v+pos);
+    score += sg*(v+pos);
   }
 
-  const mlb=legal(b,'b').length;
-  const mlr=legal(b,'r').length;
+  const mlb=legal(b,'b');
+  const mlr=legal(b,'r');
+  score += (bc-rc)*10;
+  score += (bk-rk)*38;
+  score += (mlb.length-mlr.length)*8;
+  score += (bAdv-rAdv)*2;
+  score += (bCenter-rCenter)*3;
 
-  score+=(bc-rc)*8;
-  score+=(bk-rk)*34;
-  score+=(mlb-mlr)*7;
+  let cb=0,cr=0;
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+    const p=b[r][c];
+    if(!p) continue;
+    if(C(p)==='b') cb+=caps(b,r,c,p).length;
+    else cr+=caps(b,r,c,p).length;
+  }
+  score += (cb-cr)*18;
 
-  // Back-rank stability / blockade.
   let linksB=0,linksR=0,trappedB=0,trappedR=0;
   for(let r=0;r<8;r++)for(let c=0;c<8;c++){
     const p=b[r][c];
@@ -176,17 +193,21 @@ function evaluate(b){
       if(!K(p)&&free===0) trappedR++;
     }
   }
-  score+=(linksB-linksR)*3;
-  score-=(trappedB-trappedR)*8;
+  score+=(linksB-linksR)*4;
+  score-=(trappedB-trappedR)*10;
 
   const total=bc+rc;
+  if(total<=10){
+    score+=(bk-rk)*12;
+    score+=(mlb.length-mlr.length)*4;
+  }
   if(total<=8){
     score+=(bk-rk)*48;
-    score+=(mlb-mlr)*13;
+    score+=(mlb.length-mlr.length)*13;
   }
   if(total<=5){
-    score+=(bk-rk)*65;
-    score+=(mlb-mlr)*20;
+    score+=(bk-rk)*70;
+    score+=(mlb.length-mlr.length)*20;
   }
   return score;
 }
@@ -303,12 +324,12 @@ function think(board,t,diff,maxTime,forced){
   if(!root.length) return null;
 
   const cfg={
-    1:[6,600],
-    2:[9,1800],
-    3:[12,4500],
-    4:[16,9000],
-    5:[20,16000]
-  }[+diff]||[9,1800];
+    1:[7,700],
+    2:[10,2200],
+    3:[14,5500],
+    4:[18,11000],
+    5:[23,18000]
+  }[+diff]||[10,2200];
 
   const limit=Math.max(250,Math.min(maxTime||cfg[1],cfg[1]));
   ctx={end:Date.now()+limit};
